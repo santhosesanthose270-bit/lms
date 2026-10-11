@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1.0">
+    <title>Chat - Nexus LMS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            height: 100%; overflow: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #efeae2; color: #111b21;
+        }
+
+        .wa-container {
+            display: flex; flex-direction: column;
+            /* Use dynamic viewport height so the layout resizes when the
+               on-screen keyboard opens on mobile. */
+            height: 100vh;
+            height: 100dvh;
+            min-height: 100dvh;
+            width: 100%;
+            background: #efeae2; position: relative; overflow: hidden;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        /* When the keyboard opens, browsers that move the visual viewport
+           leave the fixed-height container in place; allow the input area
+           to float above the keyboard. */
+        .wa-input-area {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 12px; background: #f0f2f5; z-index: 10; flex-shrink: 0;
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.05);
+            /* Keep the composer visible above the mobile keyboard */
+            position: sticky; bottom: 0;
+        }
+
+        /* Subtle WhatsApp pattern background */
+        .wa-container::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+            background-size: 16px 16px; opacity: 0.4; pointer-events: none; z-index: 0;
+        }
+
+        /* Header */
+        .wa-header {
+            background: #075e54; color: white; padding: 10px 16px;
+            display: flex; align-items: center; gap: 12px; z-index: 10;
+            flex-shrink: 0; height: 60px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+        .wa-back-btn {
+            color: white; font-size: 22px; cursor: pointer; background: none;
+            border: none; padding: 4px 8px 4px 0; display: flex; align-items: center;
+            text-decoration: none; border-radius: 50%; transition: background 0.2s;
+        }
+        .wa-back-btn:hover { opacity: 0.85; }
+        
+        .wa-avatar {
+            width: 42px; height: 42px; border-radius: 50%; background: #128c7e;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; color: white; font-weight: 600; flex-shrink: 0;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        .wa-header-info { flex: 1; min-width: 0; }
+        .wa-header-name { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .wa-header-status { font-size: 12px; opacity: 0.85; display: flex; align-items: center; gap: 4px; }
+        .wa-status-dot { width: 7px; height: 7px; background: #25d366; border-radius: 50%; display: inline-block; }
+
+        .wa-header-actions { display: flex; gap: 8px; align-items: center; }
+        .wa-action-btn {
+            color: white; font-size: 18px; text-decoration: none; padding: 6px 10px;
+            background: rgba(255,255,255,0.15); border-radius: 20px; display: flex;
+            align-items: center; gap: 6px; font-size: 13px; font-weight: 500;
+            transition: background 0.2s; border: none; cursor: pointer;
+        }
+        .wa-action-btn:hover { background: rgba(255,255,255,0.25); }
+
+        /* Messages Scroll Container */
+        .wa-messages {
+            flex: 1; overflow-y: auto; padding: 16px;
+            display: flex; flex-direction: column; gap: 8px; z-index: 1; scroll-behavior: smooth;
+        }
+
+        .wa-date-divider { text-align: center; margin: 8px 0; }
+        .wa-date-divider span {
+            background: rgba(255, 255, 255, 0.95); color: #54656f;
+            font-size: 12px; padding: 6px 14px; border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08); font-weight: 500;
+        }
+
+        /* Message Bubbles */
+        .wa-msg {
+            max-width: 78%; padding: 8px 12px 6px 12px; border-radius: 10px;
+            font-size: 14.5px; line-height: 1.45; word-wrap: break-word;
+            position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .wa-msg.sent {
+            align-self: flex-end; background: #d9fdd3; color: #111b21;
+            border-top-right-radius: 2px;
+        }
+        .wa-msg.received {
+            align-self: flex-start; background: #ffffff; color: #111b21;
+            border-top-left-radius: 2px;
+        }
+        .wa-msg-time {
+            font-size: 11px; color: #667781; text-align: right;
+            margin-top: 3px; display: flex; align-items: center; justify-content: flex-end; gap: 4px;
+        }
+        .wa-msg.sent .wa-msg-time { color: #507a50; }
+        .wa-msg-check { font-size: 13px; font-weight: bold; }
+        .wa-msg-check.read { color: #53bdeb; }
+
+        .wa-msg-image {
+            max-width: 100%; max-height: 300px; border-radius: 8px;
+            cursor: pointer; display: block; margin-top: 4px; margin-bottom: 4px;
+            transition: opacity 0.2s; object-fit: cover;
+        }
+        .wa-msg-image:hover { opacity: 0.92; }
+
+        .wa-msg-video {
+            max-width: 100%; max-height: 300px; border-radius: 8px;
+            margin-top: 4px; margin-bottom: 4px; display: block;
+        }
+
+        .wa-msg-audio {
+            margin-top: 4px; margin-bottom: 4px; width: 100%; max-width: 260px;
+        }
+
+        .wa-msg-file {
+            display: inline-flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.05);
+            padding: 8px 12px; border-radius: 8px; font-size: 13.5px; text-decoration: none;
+            color: #075e54; font-weight: 600; margin-top: 4px; word-break: break-all;
+        }
+        .wa-msg-file:hover { background: rgba(0,0,0,0.1); }
+
+        /* Input Area */
+        .wa-input-area {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 14px; background: #f0f2f5; z-index: 10; flex-shrink: 0;
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.05);
+        }
+        .wa-input-wrapper {
+            flex: 1; display: flex; align-items: center; background: #ffffff;
+            border-radius: 24px; border: 1px solid #e5e7eb; transition: border-color 0.2s;
+            padding: 0 10px 0 14px; position: relative;
+        }
+        .wa-input-wrapper:focus-within { border-color: #075e54; }
+        .wa-input-wrapper input[type="text"] {
+            flex: 1; background: transparent; border: none; color: #111b21;
+            padding: 9px 6px; font-size: 14px; outline: none; font-family: inherit;
+        }
+        .wa-input-wrapper input[type="text"]::placeholder { color: #8696a0; }
+
+        .wa-icon-btn {
+            background: none; border: none; font-size: 22px; cursor: pointer;
+            color: #8696a0; padding: 4px; display: flex; align-items: center;
+            flex-shrink: 0; transition: color 0.2s;
+        }
+        .wa-icon-btn:hover { color: #54656f; }
+
+        .wa-send-btn {
+            border: none; width: 44px; height: 44px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 18px; transition: all 0.2s;
+            flex-shrink: 0; color: white; background: #075e54;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+        }
+        .wa-send-btn.inactive { background: #8696a0; opacity: 0.7; cursor: not-allowed; }
+        .wa-send-btn:hover:not(.inactive) { background: #0b7a6e; transform: scale(1.04); }
+
+        .wa-file-preview {
+            display: flex; align-items: center; gap: 6px; background: #e1f5fe;
+            color: #0288d1; font-size: 12px; padding: 4px 10px; border-radius: 12px;
+            font-weight: 500; margin-right: 6px; max-width: 140px; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap;
+        }
+        .wa-file-preview button {
+            background: none; border: none; color: #d32f2f; font-weight: bold;
+            cursor: pointer; margin-left: 4px; font-size: 14px;
+        }
+
+        /* Voice Recording Bar */
+        .wa-voice-recording {
+            flex: 1; display: flex; align-items: center; gap: 12px;
+            background: #ffebee; padding: 8px 16px; border-radius: 24px; color: #c62828;
+            font-weight: 600; font-size: 14px; animation: pulse 1.5s infinite;
+        }
+        .wa-voice-timer { flex: 1; }
+
+        .wa-loading, .wa-empty { text-align: center; color: #667781; padding: 50px 20px; font-size: 14px; }
+
+        /* Notification Toast */
+        #notification {
+            position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+            padding: 10px 22px; border-radius: 10px; background: #323232; color: white;
+            font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            opacity: 0; transition: opacity 0.3s ease; z-index: 2000; pointer-events: none;
+        }
+        #notification.show { opacity: 1; }
+
+        /* Lightbox Modal */
+        .lightbox-modal {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85); display: flex; align-items: center;
+            justify-content: center; z-index: 3000; opacity: 0; pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .lightbox-modal.show { opacity: 1; pointer-events: auto; }
+        .lightbox-content { max-width: 90vw; max-height: 90vh; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+        .lightbox-close {
+            position: absolute; top: 20px; right: 24px; color: white; font-size: 32px;
+            cursor: pointer; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        /* Emoji Picker Popup */
+        #emojiPicker {
+            display: none; position: fixed; bottom: 70px; left: 16px;
+            background: #ffffff; border-radius: 16px; padding: 12px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.18); z-index: 100;
+            max-width: 320px; font-size: 26px; line-height: 1.8;
+            border: 1px solid #e5e7eb; grid-template-columns: repeat(6, 1fr); gap: 6px;
+        }
+        #emojiPicker span { cursor: pointer; text-align: center; border-radius: 6px; transition: transform 0.1s; }
+        #emojiPicker span:hover { transform: scale(1.25); background: #f0f2f5; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
+        .wa-messages::-webkit-scrollbar { width: 5px; }
+        .wa-messages::-webkit-scrollbar-track { background: transparent; }
+        .wa-messages::-webkit-scrollbar-thumb { background: #c1c7cd; border-radius: 8px; }
+
+        @media (min-width: 768px) { .wa-messages { padding: 20px 80px; } }
+        @media (max-width: 480px) { .wa-msg { max-width: 88%; } }
+        @media (max-width: 767.98px) {
+            .wa-input-area {
+                padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+            }
+            .wa-header {
+                padding-top: env(safe-area-inset-top, 0px);
+            }
+            .wa-messages {
+                padding: 14px 10px;
+            }
+            .wa-icon-btn { font-size: 20px; padding: 6px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="notification"></div>
+
+    <!-- Image Lightbox Modal -->
+    <div class="lightbox-modal" id="lightboxModal" onclick="closeLightbox()">
+        <span class="lightbox-close">&times;</span>
+        <img class="lightbox-content" id="lightboxImg" src="" onclick="event.stopPropagation()">
+    </div>
+
+    <div class="wa-container">
+        <!-- WhatsApp Header -->
+        <div class="wa-header">
+            <a href="/" class="wa-back-btn" title="Back to Dashboard">←</a>
+            <div class="wa-avatar" id="waAvatar">👤</div>
+            <div class="wa-header-info">
+                <div class="wa-header-name" id="waContactName">Loading...</div>
+                <div class="wa-header-status" id="waContactStatus">
+                    <span class="wa-status-dot"></span> online
+                </div>
+            </div>
+            <div class="wa-header-actions">
+                <a id="waWhatsAppBtn" href="#" target="_blank" class="wa-action-btn" style="display:none;" title="Chat on WhatsApp">
+                    📱 WhatsApp
+                </a>
+                <button class="wa-action-btn" onclick="loadMessages(true)" title="Refresh Messages">🔄</button>
+            </div>
+        </div>
+
+        <!-- Messages Area -->
+        <div class="wa-messages" id="waMessages">
+            <div class="wa-loading">Loading messages...</div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="wa-input-area">
+            <button class="wa-icon-btn" id="emojiBtn" title="Emoji" onclick="toggleEmojiPicker()">😊</button>
+
+            <!-- Standard Input Wrapper -->
+            <div class="wa-input-wrapper" id="inputWrapper">
+                <div class="wa-file-preview" id="waFilePreview" style="display:none;">
+                    <span id="waFileName"></span>
+                    <button onclick="clearSelectedFile()">✕</button>
+                </div>
+                <input type="text" id="waInput" placeholder="Type a message" autocomplete="off" autocorrect="off" autocapitalize="sentences" enterkeyhint="send" onkeydown="if(event.key==='Enter')sendMsg()" oninput="updateSendBtn()">
+                <button class="wa-icon-btn" title="Attach file or image" onclick="document.getElementById('waFileInput').click()">📎</button>
+                <input type="file" id="waFileInput" style="display:none" onchange="onFileSelect()">
+            </div>
+
+            <!-- Voice Recording UI (Hidden by default) -->
+            <div class="wa-voice-recording" id="voiceRecordingArea" style="display:none;">
+                <span>🎙️ Recording...</span>
+                <span class="wa-voice-timer" id="voiceTimer">00:00</span>
+                <button class="wa-icon-btn" style="color:#d32f2f;" onclick="cancelVoiceRecord()" title="Cancel">❌</button>
+                <button class="wa-icon-btn" style="color:#2e7d32;" onclick="stopAndSendVoiceRecord()" title="Send Voice Note">✅</button>
+            </div>
+            <!-- Mic / Send Button -->
+            <button class="wa-icon-btn" id="micBtn" title="Record Voice Note" onclick="startVoiceRecord()">🎤</button>
+            <button class="wa-send-btn inactive" id="waSendBtn" onclick="sendMsg()" style="display:none;">➤</button>
+        </div>
+    </div>
+
+    <!-- Emoji Picker Popup -->
+    <div id="emojiPicker">
+        <span onclick="insertEmoji('😊')">😊</span>
+        <span onclick="insertEmoji('😂')">😂</span>
+        <span onclick="insertEmoji('❤️')">❤️</span>
+        <span onclick="insertEmoji('👍')">👍</span>
+        <span onclick="insertEmoji('🎉')">🎉</span>
+        <span onclick="insertEmoji('🙏')">🙏</span>
+        <span onclick="insertEmoji('🔥')">🔥</span>
+        <span onclick="insertEmoji('💯')">💯</span>
+        <span onclick="insertEmoji('✅')">✅</span>
+        <span onclick="insertEmoji('⭐')">⭐</span>
+        <span onclick="insertEmoji('😢')">😢</span>
+        <span onclick="insertEmoji('😍')">😍</span>
+        <span onclick="insertEmoji('👏')">👏</span>
+        <span onclick="insertEmoji('🙌')">🙌</span>
+        <span onclick="insertEmoji('😎')">😎</span>
+        <span onclick="insertEmoji('🤔')">🤔</span>
+        <span onclick="insertEmoji('💪')">💪</span>
+        <span onclick="insertEmoji('✨')">✨</span>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        let staffId = params.get('staffId');
+        let studentId = params.get('studentId');
+        let contactName = params.get('staffName') || params.get('studentName') || 'Contact';
+        let phoneParam = params.get('phone') || '';
+
+        let currentUser = null;
+        let isUserNearBottom = true;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let recordTimerInterval = null;
+        let recordStartTime = 0;
+
+        function showNotification(msg, isError = false) {
+            const n = document.getElementById('notification');
+            n.textContent = msg;
+            n.style.background = isError ? '#ef4444' : '#323232';
+            n.classList.add('show');
+            setTimeout(() => n.classList.remove('show'), 3000);
+        }
+
+        async function apiCall(url, opts = {}) {
+            const resp = await fetch(url, {
+                headers: opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'},
+                ...opts,
+                body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined)
+            });
+            const text = await resp.text();
+            let data;
+            try { data = JSON.parse(text); } catch(e) { throw new Error('Server error'); }
+            if (!resp.ok) throw new Error(data.error || 'API Error');
+            return data;
+        }
+
+        async function checkSession() {
+            try {
+                const res = await apiCall('/api/session');
+                currentUser = res.user;
+            } catch(e) {
+                window.location.href = '/';
+            }
+        }
+
+        function initHeader() {
+            document.getElementById('waContactName').textContent = contactName;
+            const initial = contactName.charAt(0).toUpperCase();
+            document.getElementById('waAvatar').textContent = initial;
+
+            const waBtn = document.getElementById('waWhatsAppBtn');
+            if (phoneParam) {
+                let cleanPhone = phoneParam.replace(/[\s\-\+\(\)]/g, '');
+                if (!cleanPhone.startsWith('91') && cleanPhone.length === 10) {
+                    cleanPhone = '91' + cleanPhone;
+                }
+                waBtn.href = 'https://wa.me/' + cleanPhone;
+                waBtn.style.display = 'inline-flex';
+            }
+        }
+
+        function updateSendBtn() {
+            const input = document.getElementById('waInput');
+            const fileInput = document.getElementById('waFileInput');
+            const sendBtn = document.getElementById('waSendBtn');
+            const micBtn = document.getElementById('micBtn');
+
+            const hasText = input.value.trim().length > 0;
+            const hasFile = fileInput.files.length > 0;
+
+            if (hasText || hasFile) {
+                sendBtn.style.display = 'flex';
+                sendBtn.className = 'wa-send-btn';
+                sendBtn.disabled = false;
+                micBtn.style.display = 'none';
+            } else {
+                sendBtn.style.display = 'none';
+                micBtn.style.display = 'flex';
+            }
+        }
+
+        function toggleEmojiPicker() {
+            const picker = document.getElementById('emojiPicker');
+            picker.style.display = picker.style.display === 'grid' ? 'none' : 'grid';
+        }
+
+        function insertEmoji(emoji) {
+            const input = document.getElementById('waInput');
+            input.value += emoji;
+            input.focus();
+            updateSendBtn();
+            document.getElementById('emojiPicker').style.display = 'none';
+        }
+
+        function onFileSelect() {
+            const fi = document.getElementById('waFileInput');
+            const preview = document.getElementById('waFilePreview');
+            const fileNameSpan = document.getElementById('waFileName');
+            if (fi.files.length > 0) {
+                fileNameSpan.textContent = '📎 ' + fi.files[0].name;
+                preview.style.display = 'inline-flex';
+                updateSendBtn();
+            } else {
+                preview.style.display = 'none';
+                updateSendBtn();
+            }
+        }
+
+        function clearSelectedFile() {
+            const fi = document.getElementById('waFileInput');
+            fi.value = '';
+            document.getElementById('waFilePreview').style.display = 'none';
+            updateSendBtn();
+        }
+
+        /* Lightbox Image Preview */
+        function openLightbox(url) {
+            document.getElementById('lightboxImg').src = url;
+            document.getElementById('lightboxModal').classList.add('show');
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightboxModal').classList.remove('show');
+        }
+
+        /* Voice Recording Functions */
+        async function startVoiceRecord() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showNotification('Voice recording not supported in this browser', true);
+                return;
+            }
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioChunks = [];
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = e => {
+                    if (e.data.size > 0) audioChunks.push(e.data);
+                };
+
+                mediaRecorder.start();
+                recordStartTime = Date.now();
+
+                document.getElementById('inputWrapper').style.display = 'none';
+                document.getElementById('voiceRecordingArea').style.display = 'flex';
+                document.getElementById('micBtn').style.display = 'none';
+                document.getElementById('emojiBtn').style.display = 'none';
+
+                recordTimerInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - recordStartTime) / 1000);
+                    const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                    const secs = String(elapsed % 60).padStart(2, '0');
+                    document.getElementById('voiceTimer').textContent = `${mins}:${secs}`;
+                }, 1000);
+            } catch(e) {
+                showNotification('Microphone access denied', true);
+            }
+        }
+
+        function resetVoiceUI() {
+            if (recordTimerInterval) clearInterval(recordTimerInterval);
+            document.getElementById('inputWrapper').style.display = 'flex';
+            document.getElementById('voiceRecordingArea').style.display = 'none';
+            document.getElementById('micBtn').style.display = 'flex';
+            document.getElementById('emojiBtn').style.display = 'flex';
+            document.getElementById('voiceTimer').textContent = '00:00';
+            updateSendBtn();
+        }
+
+        function cancelVoiceRecord() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(t => t.stop());
+            }
+            resetVoiceUI();
+        }
+
+        async function stopAndSendVoiceRecord() {
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                mediaRecorder.stream.getTracks().forEach(t => t.stop());
+                resetVoiceUI();
+
+                const fd = new FormData();
+                if (currentUser.role === 'student') {
+                    fd.append('staff_id', staffId);
+                } else {
+                    fd.append('student_id', studentId);
+                }
+                fd.append('message', '');
+                fd.append('messageFile', audioBlob, `voicenote_${Date.now()}.webm`);
+
+                try {
+                    const endpoint = currentUser.role === 'student' ? '/api/student/send-message' : '/api/staff/send-message';
+                    await apiCall(endpoint, { method: 'POST', body: fd });
+                    await loadMessages(true);
+                } catch(e) {
+                    showNotification('Failed to send voice note', true);
+                }
+            };
+
+            mediaRecorder.stop();
+        }
+
+        /* Load Messages */
+        async function loadMessages(forceScroll = false) {
+            const container = document.getElementById('waMessages');
+            
+            // Determine scroll position
+            if (!forceScroll) {
+                const threshold = 120;
+                isUserNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+            }
+
+            const targetId = currentUser.role === 'student' ? staffId : studentId;
+            if (!targetId) {
+                container.innerHTML = '<div class="wa-empty">No recipient selected.</div>';
+                return;
+            }
+
+            const apiEndpoint = currentUser.role === 'student' ? `/api/student/chat/${targetId}` : `/api/staff/chat/${targetId}`;
+
+            try {
+                const data = await apiCall(apiEndpoint);
+                if (data.staff && data.staff.username) {
+                    document.getElementById('waContactName').textContent = data.staff.username;
+                } else if (data.student) {
+                    document.getElementById('waContactName').textContent = data.student.full_name || data.student.username;
+                }
+
+                if (!data.messages || data.messages.length === 0) {
+                    container.innerHTML = '<div class="wa-empty">No messages yet. Say hello! 👋</div>';
+                    await apiCall('/api/messages/mark-read', { method: 'POST', body: { sender_id: targetId } });
+                    return;
+                }
+
+                let html = '';
+                let lastDate = '';
+
+                data.messages.forEach(m => {
+                    const d = new Date(m.created_at);
+                    const dateStr = d.toLocaleDateString();
+                    if (dateStr !== lastDate) {
+                        const today = new Date();
+                        const isToday = dateStr === today.toLocaleDateString();
+                        const yesterday = new Date(today);
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        const isYesterday = dateStr === yesterday.toLocaleDateString();
+                        let label = isToday ? 'Today' : (isYesterday ? 'Yesterday' : dateStr);
+                        html += `<div class="wa-date-divider"><span>${label}</span></div>`;
+                        lastDate = dateStr;
+                    }
+
+                    // Check if received or sent
+                    const isReceived = m.sender_id === Number(targetId);
+                    const cls = isReceived ? 'received' : 'sent';
+                    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    
+                    const checkClass = m.is_read ? 'wa-msg-check read' : 'wa-msg-check';
+                    const checkMark = isReceived ? '' : `<span class="${checkClass}">✓✓</span>`;
+
+                    let content = '';
+                    if (m.message_text) {
+                        // Escape text and support newlines
+                        const safeText = m.message_text.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+                        content += `<div>${safeText}</div>`;
+                    }
+
+                    if (m.media_url) {
+                        if (m.media_type === 'image') {
+                            content += `<img src="${m.media_url}" class="wa-msg-image" onclick="openLightbox('${m.media_url}')" title="Click to view image">`;
+                        } else if (m.media_type === 'audio') {
+                            content += `<audio controls class="wa-msg-audio" src="${m.media_url}"></audio>`;
+                        } else if (m.media_type === 'video') {
+                            content += `<video controls class="wa-msg-video" src="${m.media_url}"></video>`;
+                        } else {
+                            const filename = m.media_url.split('/').pop().replace(/^msg_\d+_/, '');
+                            content += `<a href="${m.media_url}" target="_blank" class="wa-msg-file" download>📎 Download ${filename || 'Attachment'}</a>`;
+                        }
+                    }
+
+                    html += `
+                        <div class="wa-msg ${cls}">
+                            ${content}
+                            <div class="wa-msg-time">${time} ${checkMark}</div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+
+                if (forceScroll || isUserNearBottom) {
+                    container.scrollTop = container.scrollHeight;
+                }
+
+                await apiCall('/api/messages/mark-read', { method: 'POST', body: { sender_id: targetId } });
+            } catch(e) {
+                container.innerHTML = '<div class="wa-empty">Failed to load messages.</div>';
+            }
+        }
+
+        async function sendMsg() {
+            const input = document.getElementById('waInput');
+            const fileInput = document.getElementById('waFileInput');
+            const msg = input.value.trim();
+            const file = fileInput.files[0];
+
+            const targetId = currentUser.role === 'student' ? staffId : studentId;
+            if (!targetId) return;
+            if (!msg && !file) return;
+
+            const fd = new FormData();
+            if (currentUser.role === 'student') {
+                fd.append('staff_id', targetId);
+            } else {
+                fd.append('student_id', targetId);
+            }
+            fd.append('message', msg || '');
+            if (file) fd.append('messageFile', file);
+
+            try {
+                input.disabled = true;
+                document.getElementById('waSendBtn').disabled = true;
+
+                const endpoint = currentUser.role === 'student' ? '/api/student/send-message' : '/api/staff/send-message';
+                await apiCall(endpoint, { method: 'POST', body: fd });
+
+                input.value = '';
+                clearSelectedFile();
+                updateSendBtn();
+                await loadMessages(true);
+            } catch(e) {
+                showNotification(e.message || 'Failed to send', true);
+            } finally {
+                input.disabled = false;
+                document.getElementById('waSendBtn').disabled = false;
+                updateSendBtn();
+                input.focus();
+            }
+        }
+
+        // Close emoji picker when clicking outside
+        document.addEventListener('click', function(e) {
+            const picker = document.getElementById('emojiPicker');
+            const btn = document.getElementById('emojiBtn');
+            if (!picker.contains(e.target) && !btn.contains(e.target)) {
+                picker.style.display = 'none';
+            }
+        });
+
+        // Keep the chat composer visible above the mobile on-screen keyboard.
+        // Some browsers do not shrink the layout viewport when the keyboard
+        // opens, so we track the visual viewport and pin the input area
+        // (which is sticky) to the visible part of the viewport.
+        (function initKeyboardFix() {
+            const inputArea = document.querySelector('.wa-input-area');
+            const messages = document.getElementById('waMessages');
+            if (!inputArea || !window.visualViewport) {
+                // visualViewport unsupported — rely on 100dvh + sticky fallback
+                return;
+            }
+            const onViewportResize = function() {
+                const vv = window.visualViewport;
+                if (!vv) return;
+                // vv.height is the visible height excluding the keyboard.
+                const container = document.querySelector('.wa-container');
+                if (container) container.style.height = vv.height + 'px';
+            };
+            window.visualViewport.addEventListener('resize', onViewportResize);
+            window.visualViewport.addEventListener('scroll', onViewportResize);
+            onViewportResize();
+        })();
+
+        // Initialize Chat Page
+        initHeader();
+        checkSession().then(() => {
+            loadMessages(true);
+            // Polling every 2.5 seconds for instant real-time feel
+            setInterval(() => loadMessages(false), 2500);
+        });
+    </script>
+</body>
+</html>
